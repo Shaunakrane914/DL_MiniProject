@@ -1,0 +1,85 @@
+{
+  "project_title": "Deep Learning-Based Oil Spill Detection with Weather-Aware Environmental Analysis",
+  "model_architecture": "U-Net Convolutional Neural Network",
+  "base_filters": 16,
+  "total_parameters": 1945521,
+  "trainable_parameters": 1941681,
+  "non_trainable_parameters": 3840,
+  "input_shape": [256, 256, 3],
+  "output_shape": [256, 256, 1],
+  "hyperparameters": {
+    "image_size": 256,
+    "batch_size": 8,
+    "epochs": 5,
+    "optimizer": "Adam",
+    "learning_rate": 0.0001,
+    "loss_function": "Binary Cross-Entropy + Dice Loss (bce_dice_loss)",
+    "detection_threshold": 0.5,
+    "coverage_threshold_pct": 0.5
+  },
+  "dataset_split": {
+    "total_train_pairs": 6455,
+    "total_val_pairs": 1615,
+    "training_samples_used": 600,
+    "validation_samples_used": 160,
+    "train_batches_per_epoch": 75,
+    "val_batches_per_epoch": 20
+  },
+  "training_progression": [
+    {
+      "epoch": 1,
+      "train_loss": 1.7327,
+      "train_dice": 0.1068,
+      "train_iou": 0.0578,
+      "val_loss": 3.6132,
+      "val_dice": 0.0421,
+      "val_iou": 0.0218
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.5289,
+      "train_dice": 0.1989,
+      "train_iou": 0.1151,
+      "val_loss": 1.5863,
+      "val_dice": 0.1714,
+      "val_iou": 0.1007
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.4066,
+      "train_dice": 0.3176,
+      "train_iou": 0.1993,
+      "val_loss": 1.4520,
+      "val_dice": 0.2280,
+      "val_iou": 0.1415
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.2816,
+      "train_dice": 0.5130,
+      "train_iou": 0.3674,
+      "val_loss": 1.3912,
+      "val_dice": 0.2941,
+      "val_iou": 0.1850
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.2766,
+      "train_dice": 0.5140,
+      "train_iou": 0.3691,
+      "val_loss": 1.3488,
+      "val_dice": 0.3210,
+      "val_iou": 0.2232
+    }
+  ],
+  "final_validation_results": {
+    "loss": 1.3488,
+    "dice_coefficient": 0.3210,
+    "iou_score": 0.2232
+  },
+  "artifacts": {
+    "model_checkpoint": "models/oil_spill_unet.keras",
+    "model_file_size_mb": 22.54,
+    "training_curves_plot": "outputs/training_curves.png"
+  }
+}
