@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment & Virtual Environments
+.env
+.venv
+env/
+venv/
+.ipynb_checkpoints/
+
+# Operating System artifacts
+.DS_Store
+__MACOSX/
+Thumbs.db
+*.tmp
+
+# Large Datasets & Course Study Materials (exceeds GitHub 100MB limit)
+dataset/
+images (1)/
+Deep Learning/
+
+# Temporary outputs (keep training_curves.png)
+outputs/test_*.png
