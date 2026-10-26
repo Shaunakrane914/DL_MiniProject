@@ -1,21 +1,28 @@
 """
-Marine Oil Spill Detection & Weather-Aware Environmental Analysis
-Interactive Streamlit Dashboard
+Marine Oil Spill Detection & Weather-Aware Analysis
+Frontend Interface (Streamlit Dashboard)
+All UI rendering, visual overlays, and user interaction code resides here.
 """
 
 import os
+import sys
 import io
 import numpy as np
 from PIL import Image
 import streamlit as st
 
-from utils import (
+# Setup path to import from backend
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from backend.utils import (
     IMG_SIZE,
     DETECTION_THRESHOLD,
     COVERAGE_THRESHOLD,
     preprocess_image,
     postprocess_mask,
-    create_overlay,
     compute_coverage,
     is_spill_detected,
     compute_era5_wind_metrics,
@@ -23,7 +30,26 @@ from utils import (
     load_saved_model,
 )
 
-# ─── Page Configuration ───────────────────────────────────────────────────────
+# ─── Frontend Visual Helper ───────────────────────────────────────────────────
+
+def create_visual_overlay(image: np.ndarray, mask: np.ndarray, color=(220, 30, 30), alpha=0.45) -> np.ndarray:
+    """Blends detected spill mask (red highlight) onto original image for UI display."""
+    img = image.astype(np.float32)
+    spill = mask > 127
+    overlay = img.copy()
+    for ch, val in enumerate(color):
+        overlay[:, :, ch] = np.where(spill, img[:, :, ch] * (1 - alpha) + val * alpha, img[:, :, ch])
+    return np.clip(overlay, 0, 255).astype(np.uint8)
+
+
+def mask_to_png_bytes(mask: np.ndarray) -> bytes:
+    """Converts a binary mask array into downloadable PNG bytes."""
+    buf = io.BytesIO()
+    Image.fromarray(mask).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# ─── Streamlit Page Configuration ─────────────────────────────────────────────
 
 st.set_page_config(
     page_title="Marine Oil Spill Detection",
@@ -31,16 +57,16 @@ st.set_page_config(
     layout="wide",
 )
 
-MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "oil_spill_unet.keras")
-SAMPLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample_data", "images")
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "oil_spill_unet.keras")
+SAMPLE_DIR = os.path.join(PROJECT_ROOT, "sample_data", "images")
 
 
-@st.cache_resource(show_spinner="Loading trained U-Net model...")
+@st.cache_resource(show_spinner="Loading trained U-Net model from backend...")
 def get_model():
     return load_saved_model(MODEL_PATH)
 
 
-# ─── Sidebar: Controls & ERA5 Wind ────────────────────────────────────────────
+# ─── Sidebar: Controls & ERA5 Weather Inputs ──────────────────────────────────
 
 with st.sidebar:
     st.title("⚙️ Control Panel")
@@ -54,7 +80,7 @@ with st.sidebar:
 
     st.subheader("🎛️ Detection Sensitivity")
     px_thresh = st.slider("Pixel Probability Threshold", 0.1, 0.9, DETECTION_THRESHOLD, 0.05,
-                          help="Sigmoid output probability required to classify a pixel as oil.")
+                          help="Sigmoid probability required to classify a pixel as oil.")
     cov_thresh = st.slider("Min Coverage to Flag Spill (%)", 0.1, 5.0, COVERAGE_THRESHOLD, 0.1,
                            help="Minimum percentage of image area required to trigger a spill alert.")
 
@@ -67,10 +93,10 @@ with st.sidebar:
     st.caption(f"_{preset['desc']}_")
 
 
-# ─── Main Interface ───────────────────────────────────────────────────────────
+# ─── Main UI Panel ────────────────────────────────────────────────────────────
 
 st.title("🛰️ Marine Oil Spill Detection & Weather-Aware Analysis")
-st.caption("Deep Learning U-Net CNN Segmentation · SAR Satellite Imagery · ERA5 Wind Reanalysis")
+st.caption("Deep Learning U-Net CNN · SAR Satellite Imagery · ERA5 Wind Reanalysis")
 
 sample_files = [f for f in os.listdir(SAMPLE_DIR) if f.lower().endswith((".png", ".jpg", ".jpeg"))] if os.path.exists(SAMPLE_DIR) else []
 
@@ -106,21 +132,20 @@ if image is not None:
                 raw_pred = model.predict(prep, verbose=0)
                 mask = postprocess_mask(raw_pred, threshold=px_thresh, original_size=(orig_w, orig_h))
             else:
-                # Basic grayscale fallback if model is missing
                 gray = np.array(image.convert("L"))
                 mask = ((gray < 70).astype(np.uint8)) * 255
 
             coverage = compute_coverage(mask)
             detected = is_spill_detected(coverage, min_pct=cov_thresh)
-            overlay = create_overlay(img_arr, mask)
+            overlay = create_visual_overlay(img_arr, mask)
             era5 = compute_era5_wind_metrics(wind_u10, wind_v10)
 
-            # Look-alike discrimination: If wind < 3 m/s, dark patches are calm sea false alarms
+            # Look-alike discrimination (low-wind false alarm)
             is_lookalike = detected and era5["is_lookalike_risk"]
 
             st.divider()
 
-            # Alert Banner
+            # Status Banner
             if is_lookalike:
                 st.warning("⚠️ **LIKELY WEATHER LOOK-ALIKE:** Low wind (< 3 m/s) creates dark, calm sea zones mimicking oil slicks.")
             elif detected:
@@ -147,12 +172,11 @@ if image is not None:
                 st.subheader("3. Spill Boundary Overlay")
                 st.image(overlay, use_container_width=True)
 
-            # Download Mask Button
-            buf = io.BytesIO()
-            Image.fromarray(mask).save(buf, format="PNG")
+            # Mask Download Button
+            png_bytes = mask_to_png_bytes(mask)
             st.download_button(
                 label="⬇️ Download Predicted Spill Mask (PNG)",
-                data=buf.getvalue(),
+                data=png_bytes,
                 file_name=f"mask_{image_name}",
                 mime="image/png",
                 use_container_width=True,

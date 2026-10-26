@@ -1,7 +1,6 @@
 """
-Utility Functions & Deep Learning Architecture for Marine Oil Spill Detection
-Course Module: Deep Learning Mini-Project (AIML/DS)
-Key Topics: U-Net CNN, ReLU/Sigmoid, Adam, BCE+Dice Loss, ERA5 Wind Physics
+Pure Deep Learning & Scientific Backend for Marine Oil Spill Detection
+Contains: U-Net Architecture, BCE+Dice Loss, Evaluator Metrics, Data Generator, ERA5 Wind Physics
 """
 
 import os
@@ -13,37 +12,20 @@ from tensorflow import keras
 from tensorflow.keras import layers
 
 # ==============================================================================
-# 1. HYPERPARAMETERS (AND WHY THEY WERE CHOSEN)
+# 1. HYPERPARAMETERS
 # ==============================================================================
 
-# WHY 256x256: Power of 2 (2^8). Enables 4 exact pooling steps (256->128->64->32->16)
-# without fractional dimension rounding issues.
 IMG_SIZE = 256
-
-# WHY Batch Size 8: Balances GPU/CPU memory consumption with gradient variance.
 BATCH_SIZE = 8
-
-# WHY Epochs 5: Sufficient for convergence on SAR dataset without overfitting.
 EPOCHS = 5
-
-# WHY Adam LR = 1e-4: Sweet spot for Adam optimizer on semantic segmentation.
-# 1e-3 causes gradient oscillations; 1e-5 trains too slowly.
 LEARNING_RATE = 1e-4
-
-# WHY 0.5 Threshold: Standard sigmoid decision boundary (P(spill) >= 0.5 -> 1).
 DETECTION_THRESHOLD = 0.5
-
-# WHY Coverage 0.5%: Flags potential spills if >= 0.5% of pixels are classified as oil.
 COVERAGE_THRESHOLD = 0.5
 
 
 # ==============================================================================
 # 2. LOSS FUNCTIONS & EVALUATION METRICS
 # ==============================================================================
-# WHY COMBINE BCE AND DICE LOSS?
-# In satellite imagery, oil spills cover < 5% of pixels (severe class imbalance).
-# Standard BCE is heavily biased toward the ocean background (predicting all 0s gives 95% accuracy!).
-# Dice Loss directly maximizes overlap (F1 score) on minority oil spill pixels.
 
 def dice_coefficient(y_true: tf.Tensor, y_pred: tf.Tensor, smooth: float = 1.0) -> tf.Tensor:
     """Computes Dice Coefficient (F1 Score) measuring predicted vs true mask overlap."""
@@ -63,7 +45,7 @@ def iou_score(y_true: tf.Tensor, y_pred: tf.Tensor, smooth: float = 1.0) -> tf.T
 
 
 def bce_dice_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-    """Combined loss: BCE penalizes individual pixel errors, Dice penalizes poor boundary overlap."""
+    """Combined loss: Binary Cross-Entropy + Dice Loss (handles extreme class imbalance)."""
     bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     dice_loss = 1.0 - dice_coefficient(y_true, y_pred)
     return tf.reduce_mean(bce) + dice_loss
@@ -72,14 +54,6 @@ def bce_dice_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 # ==============================================================================
 # 3. U-NET CONVOLUTIONAL NEURAL NETWORK
 # ==============================================================================
-# WHY U-NET?
-# 1. Encoder compresses spatial resolution to learn semantic features (what is oil).
-# 2. Decoder expands spatial resolution back to 256x256 (where is oil).
-# 3. Skip connections copy fine-grained spatial details directly from encoder to decoder.
-#
-# WHY RELU IN HIDDEN LAYERS? Solves vanishing gradients and computes rapidly.
-# WHY HE_NORMAL INITIALIZER? Specifically derived to maintain activation variance with ReLU.
-# WHY SIGMOID AT OUTPUT? Squashes pixel output to [0, 1] probability of being oil.
 
 def double_conv_block(x: tf.Tensor, filters: int) -> tf.Tensor:
     """Two 3x3 Conv layers with Batch Normalization and ReLU activation."""
@@ -114,29 +88,25 @@ def build_unet(
     input_shape: Tuple[int, int, int] = (256, 256, 3),
     base_filters: int = 16,
 ) -> keras.Model:
-    """
-    Builds the complete U-Net CNN model with ~1.94M parameters.
-    WHY BASE_FILTERS = 16? Prevents overfitting on speckle noise and speeds up training 3.3x.
-    WHY ADAM OPTIMIZER? Adaptive learning rates with momentum and RMSProp handle sparse gradients.
-    """
+    """Builds and compiles the complete U-Net CNN segmentation model."""
     inputs = layers.Input(shape=input_shape, name="sar_image")
 
     # Encoder (Downsampling path: 256 -> 128 -> 64 -> 32 -> 16)
-    s1, p1 = encoder_block(inputs, base_filters * 1)   # 256 -> 128
-    s2, p2 = encoder_block(p1,     base_filters * 2)   # 128 -> 64
-    s3, p3 = encoder_block(p2,     base_filters * 4)   # 64 -> 32
-    s4, p4 = encoder_block(p3,     base_filters * 8)   # 32 -> 16
+    s1, p1 = encoder_block(inputs, base_filters * 1)
+    s2, p2 = encoder_block(p1,     base_filters * 2)
+    s3, p3 = encoder_block(p2,     base_filters * 4)
+    s4, p4 = encoder_block(p3,     base_filters * 8)
 
     # Bottleneck
-    b = double_conv_block(p4, base_filters * 16)       # 16x16
+    b = double_conv_block(p4, base_filters * 16)
 
     # Decoder (Upsampling path: 16 -> 32 -> 64 -> 128 -> 256)
-    d1 = decoder_block(b,  s4, base_filters * 8)       # 16 -> 32
-    d2 = decoder_block(d1, s3, base_filters * 4)       # 32 -> 64
-    d3 = decoder_block(d2, s2, base_filters * 2)       # 64 -> 128
-    d4 = decoder_block(d3, s1, base_filters * 1)       # 128 -> 256
+    d1 = decoder_block(b,  s4, base_filters * 8)
+    d2 = decoder_block(d1, s3, base_filters * 4)
+    d3 = decoder_block(d2, s2, base_filters * 2)
+    d4 = decoder_block(d3, s1, base_filters * 1)
 
-    # Output Layer: 1x1 Conv with Sigmoid probability
+    # Output Layer
     outputs = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="mask")(d4)
 
     model = keras.Model(inputs=inputs, outputs=outputs, name="OilSpill_UNet")
@@ -149,7 +119,7 @@ def build_unet(
 
 
 # ==============================================================================
-# 4. DATA GENERATOR (EFFICIENT BATCH LOADING & AUGMENTATION)
+# 4. DATA GENERATOR (BATCH LOADING & AUGMENTATION)
 # ==============================================================================
 
 class OilSpillDataGenerator(keras.utils.Sequence):
@@ -192,7 +162,6 @@ class OilSpillDataGenerator(keras.utils.Sequence):
         return max(1, len(self.indexes) // self.batch_size)
 
     def on_epoch_end(self):
-        """Shuffle indices after each epoch to prevent cyclical mini-batch bias."""
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
@@ -216,7 +185,6 @@ class OilSpillDataGenerator(keras.utils.Sequence):
         mask = np.array(mask, dtype=np.float32) / 255.0
         mask = np.expand_dims(mask, axis=-1)
 
-        # Augmentation: Flips prevent orientation bias
         if self.augment:
             if np.random.rand() > 0.5:
                 img, mask = np.fliplr(img), np.fliplr(mask)
@@ -227,7 +195,7 @@ class OilSpillDataGenerator(keras.utils.Sequence):
 
 
 # ==============================================================================
-# 5. INFERENCE & IMAGE HELPERS
+# 5. INFERENCE & DATA HELPERS
 # ==============================================================================
 
 def preprocess_image(image: Image.Image, target_size: int = IMG_SIZE) -> np.ndarray:
@@ -244,16 +212,6 @@ def postprocess_mask(raw_output: np.ndarray, threshold: float = DETECTION_THRESH
     if original_size:
         binary = np.array(Image.fromarray(binary).resize(original_size, Image.NEAREST))
     return binary
-
-
-def create_overlay(image: np.ndarray, mask: np.ndarray, color: Tuple[int, int, int] = (220, 30, 30), alpha: float = 0.45) -> np.ndarray:
-    """Blends detected spill mask (red highlight) onto original satellite image."""
-    img = image.astype(np.float32)
-    spill = mask > 127
-    overlay = img.copy()
-    for ch, val in enumerate(color):
-        overlay[:, :, ch] = np.where(spill, img[:, :, ch] * (1 - alpha) + val * alpha, img[:, :, ch])
-    return np.clip(overlay, 0, 255).astype(np.uint8)
 
 
 def compute_coverage(mask: np.ndarray) -> float:
@@ -289,20 +247,12 @@ ERA5_INCIDENT_PRESETS = {
 
 
 def compute_era5_wind_metrics(u10: float, v10: float) -> Dict[str, Any]:
-    """
-    Computes wind speed, origin compass, and projected oil drift velocity vector.
-    Physics: Surface oil drifts at ~3.2% of the 10m atmospheric wind vector.
-    """
+    """Computes wind speed, origin compass, and projected oil drift velocity vector."""
     speed_ms = float(np.sqrt(u10**2 + v10**2))
     speed_knots = speed_ms * 1.94384
 
-    # Meteorological direction (direction wind originates FROM)
     met_deg = (np.degrees(np.arctan2(-u10, -v10)) + 360.0) % 360.0
-
-    # Oceanographic drift direction (direction oil drifts TOWARD)
     drift_deg = (met_deg + 180.0) % 360.0
-
-    # Surface oil slick drift speed (empirical 3.2% rule)
     drift_kmh = (speed_ms * 0.032) * 3.6
 
     compass_sectors = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -310,16 +260,7 @@ def compute_era5_wind_metrics(u10: float, v10: float) -> Dict[str, Any]:
     met_compass = compass_sectors[int((met_deg + 11.25) / 22.5) % 16]
     drift_compass = compass_sectors[int((drift_deg + 11.25) / 22.5) % 16]
 
-    # SAR observation feasibility check
-    if speed_ms < 3.0:
-        feasibility = "Low Wind (<3 m/s) — High Risk of Calm-Sea Look-Alikes"
-        is_lookalike_risk = True
-    elif speed_ms <= 12.0:
-        feasibility = "Optimal Wind (3–12 m/s) — High Radar Contrast"
-        is_lookalike_risk = False
-    else:
-        feasibility = "High Wind (>12 m/s) — Breaking Waves Disperse Slicks"
-        is_lookalike_risk = False
+    is_lookalike_risk = speed_ms < 3.0
 
     return {
         "speed_ms": speed_ms,
@@ -329,7 +270,6 @@ def compute_era5_wind_metrics(u10: float, v10: float) -> Dict[str, Any]:
         "drift_direction_deg": drift_deg,
         "drift_compass": drift_compass,
         "drift_speed_kmh": drift_kmh,
-        "feasibility_label": feasibility,
         "is_lookalike_risk": is_lookalike_risk,
     }
 

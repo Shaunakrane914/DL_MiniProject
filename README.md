@@ -49,23 +49,28 @@ In satellite radar remote sensing, dark patches are caused by suppressed capilla
 ```
 DL_MP/
 │
+├── backend/                ← Pure Deep Learning & Scientific Backend
+│   ├── __init__.py
+│   ├── utils.py            ← U-Net CNN, BCE+Dice loss, data generator, ERA5 physics
+│   └── train_model.py      ← Model training & evaluation pipeline
+│
+├── frontend/               ← User Interface & Web Dashboard
+│   └── app.py              ← Streamlit interactive web application & visual overlays
+│
+├── models/
+│   └── oil_spill_unet.keras ← Trained U-Net model checkpoint (~22.5 MB)
+│
 ├── sample_data/            ← Benchmark test scenes (positive spills & look-alikes)
 │   ├── images/             ← Sample SAR satellite patches (256x256)
 │   └── masks/              ← Corresponding ground-truth binary masks
 │
-├── models/
-│   └── oil_spill_unet.keras ← Trained U-Net model checkpoint (~8 MB)
-│
-├── notebooks/
-│   └── train_model.py      ← Interactive training pipeline (# %% cell format)
-│
 ├── outputs/
-│   └── training_curves.png ← Training convergence curves (Loss & Dice vs Epochs)
+│   ├── training_curves.png ← Training convergence curves (Loss & Dice vs Epochs)
+│   └── training_metrics.json ← Quantitative epoch-by-epoch training logs
 │
-├── app.py                  ← Streamlit interactive web application
-├── utils.py                ← U-Net architecture, losses, metrics, ERA5 physics
 ├── requirements.txt        ← Minimal dependencies
 ├── .gitignore              ← Excludes large datasets (>100MB) and temp files
+├── TRAINING_DETAILS.md     ← Complete viva defense guide & syllabus mapping
 └── README.md               ← Complete project documentation
 ```
 
@@ -76,23 +81,23 @@ DL_MP/
 ### 1. Installation
 Clone the repository and install required packages:
 ```bash
-git clone https://github.com/<your-username>/oil-spill-detection.git
-cd oil-spill-detection
+git clone https://github.com/Shaunakrane914/DL_MiniProject.git
+cd DL_MiniProject
 pip install -r requirements.txt
 ```
 
 ### 2. Launch the Streamlit Application
 ```bash
-streamlit run app.py
+streamlit run frontend/app.py
 ```
 - Open `http://localhost:8501` in your browser.
 - Select any of the built-in **Benchmark Sample Scenes** (or upload your own SAR image).
-- Adjust detection sensitivity, toggle the **Weather Look-Alike Filter**, and select historical **ERA5 Incident Presets** to visualize drift vectors and download diagnostic reports.
+- Adjust detection thresholds, view predictions, inspect ERA5 wind drift metrics, and download the predicted spill mask PNG.
 
 ### 3. Model Retraining (Optional)
 To retrain the U-Net CNN:
 ```bash
-python notebooks/train_model.py
+python backend/train_model.py
 ```
 This trains the U-Net model, tracks validation Dice score, saves the best weights to `models/oil_spill_unet.keras`, and exports training convergence plots to `outputs/training_curves.png`.
 
