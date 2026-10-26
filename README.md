@@ -64,7 +64,6 @@ DL_MP/
 │
 ├── app.py                  ← Streamlit interactive web application
 ├── utils.py                ← U-Net architecture, losses, metrics, ERA5 physics
-├── generate_masks.py       ← Synthetic mask generation for Zenodo Part II
 ├── requirements.txt        ← Minimal dependencies
 ├── .gitignore              ← Excludes large datasets (>100MB) and temp files
 └── README.md               ← Complete project documentation
