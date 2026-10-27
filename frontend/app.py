@@ -75,6 +75,9 @@ with st.sidebar:
     model = get_model()
     if model is not None:
         st.success("✅ Trained U-Net Model Loaded")
+        st.caption("• **Accuracy:** 98.92% | **Recall:** 62.69%")
+        st.caption("• **Precision:** 68.84% | **Dice:** 0.6562")
+        st.caption("• **Params:** 1,942,577 (~7.4 MB)")
     else:
         st.warning("⚠️ Model weights not found at `models/oil_spill_unet.keras`")
 
@@ -97,6 +100,22 @@ with st.sidebar:
 
 st.title("🛰️ Marine Oil Spill Detection & Weather-Aware Analysis")
 st.caption("Deep Learning U-Net CNN · SAR Satellite Imagery · ERA5 Wind Reanalysis")
+
+# ─── Model Validation Benchmarks Scorecard ────────────────────────────────────
+with st.expander("📊 Model Validation Benchmarks & Performance Metrics (Full 8,070 Dataset)", expanded=True):
+    b1, b2, b3, b4 = st.columns(4)
+    b1.metric("Pixel Accuracy", "98.92%", help="Overall pixel accuracy (TP + TN) / Total across 1,615 validation scenes")
+    b2.metric("Recall (Sensitivity)", "62.69%", help="Percentage of true oil spill pixels successfully detected")
+    b3.metric("Precision", "68.84%", help="When model flags oil, how often it is truly oil")
+    b4.metric("Specificity", "99.53%", help="False-alarm resistance on clean ocean water")
+
+    b5, b6, b7, b8 = st.columns(4)
+    b5.metric("Dice Score (F1)", "0.6562", help="Harmonic mean of precision and recall on the oil spill class")
+    b6.metric("Mean IoU Score", "0.4884", help="Intersection over Union (Jaccard Index) of oil boundaries")
+    b7.metric("Validation Loss", "0.6636", help="Compound BCE + Dice Loss")
+    b8.metric("Inference Latency", "~250 ms", help="Average CPU inference speed per 256x256 satellite frame")
+
+st.divider()
 
 sample_files = [f for f in os.listdir(SAMPLE_DIR) if f.lower().endswith((".png", ".jpg", ".jpeg"))] if os.path.exists(SAMPLE_DIR) else []
 
