@@ -35,7 +35,7 @@ VAL_MASK = os.path.join(DATA_DIR, "masks", "val")
 OUTPUTS_DIR = os.path.join(PROJECT_ROOT, "outputs")
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
-# Mini-batch Data Generators
+# Mini-batch Data Generators (Full Dataset: 6,455 Train, 1,615 Val)
 train_gen = OilSpillDataGenerator(
     image_dir=TRAIN_IMG,
     mask_dir=TRAIN_MASK,
@@ -43,7 +43,7 @@ train_gen = OilSpillDataGenerator(
     img_size=IMG_SIZE,
     augment=True,
     shuffle=True,
-    max_samples=600,
+    max_samples=None,
 )
 
 val_gen = OilSpillDataGenerator(
@@ -53,7 +53,7 @@ val_gen = OilSpillDataGenerator(
     img_size=IMG_SIZE,
     augment=False,
     shuffle=False,
-    max_samples=160,
+    max_samples=None,
 )
 
 print(f"Train batches per epoch: {len(train_gen)} (Batch size: {BATCH_SIZE})")
